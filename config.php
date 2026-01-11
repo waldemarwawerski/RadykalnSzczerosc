@@ -7,8 +7,8 @@ define('DB_USER', 'server233752_RadykalnaSzczerosc');
 define('DB_PASS', 'Winter1970');
 
 // Gemini API Configuration
-define('GEMINI_API_KEY', 'YOUR_GEMINI_API_KEY_HERE');
-define('GEMINI_API_URL', 'https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash-exp:generateContent');
+define('GEMINI_API_KEY', 'AIzaSyDVgFvlYL9d4xkEHWwe2bSmLHw9xXoNMWc');
+define('GEMINI_API_BASE_URL', 'https://generativelanguage.googleapis.com/v1beta/models/');
 
 // App Configuration
 define('APP_DEBUG', true); // Set to false in production

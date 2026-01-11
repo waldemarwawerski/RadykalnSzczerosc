@@ -46,6 +46,9 @@ switch ($action) {
     case 'chat_gemini':
         chatGemini($pdo);
         break;
+    case 'get_ai_models':
+        getAIModels();
+        break;
     case 'generate_report':
         generateTeamReport($pdo);
         break;
@@ -163,8 +166,13 @@ function submitTest($pdo) {
         jsonResponse('error', 'Unauthorized');
     }
 
-    $answers = $_POST['answers'] ?? []; // Array of 12 integers
-    if (count($answers) !== 12) {
+    $answers = $_POST['answers'] ?? []; 
+    // Decode JSON string if received as string (from FormData)
+    if (is_string($answers)) {
+        $answers = json_decode($answers, true);
+    }
+    
+    if (!is_array($answers) || count($answers) !== 12) {
         jsonResponse('error', 'Invalid answers count');
     }
 
@@ -234,8 +242,9 @@ function getTeamResults($pdo) {
 
 function chatGemini($pdo) {
     $prompt = $_POST['prompt'] ?? '';
-    $history = $_POST['history'] ?? []; // JSON string or array
+    $history = $_POST['history'] ?? []; 
     $mode = $_POST['mode'] ?? 'analysis';
+    $model = $_POST['model'] ?? 'gemini-1.5-flash'; // Get model from frontend
 
     if (!$prompt) jsonResponse('error', 'Prompt required');
 
@@ -248,8 +257,8 @@ function chatGemini($pdo) {
 
     $finalPrompt = $systemPrompt . "\n\nKontekst/Wiadomość użytkownika: " . $prompt;
     
-    // Call Gemini
-    $response = callGeminiAPI($finalPrompt);
+    // Call Gemini with selected model
+    $response = callGeminiAPI($finalPrompt, $model);
     
     // Log interaction
     if (isset($_SESSION['user_id'])) {
@@ -325,19 +334,57 @@ function generateTeamReport($pdo) {
     Zadanie:
     1. Zdiagnozuj główny problem kultury tego zespołu.
     2. Opisz zagrożenia biznesowe wynikające z tego rozkładu.
-    3. Podaj 3 konkretne ćwiczenia lub działania naprawcze dla tego zespołu.    
+    3. Podaj 3 konkretne ćwiczenia lub działania naprawcze dla tego zespołu.
     
     Styl: Merytoryczny, bezpośredni, psychologiczny.";
 
-    // Call AI
-    $aiReport = callGeminiAPI($prompt);
+    // Call AI with a capable model for reports (e.g., Flash or Pro)
+    $aiReport = callGeminiAPI($prompt, 'gemini-1.5-flash');
 
     jsonResponse('success', 'Report generated', ['report' => $aiReport]);
 }
 
-function callGeminiAPI($text) {
+function getAIModels() {
     $apiKey = GEMINI_API_KEY;
-    $url = GEMINI_API_URL . "?key=" . $apiKey;
+    $url = "https://generativelanguage.googleapis.com/v1beta/models?key=" . $apiKey;
+
+    $ch = curl_init($url);
+    curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
+    curl_setopt($ch, CURLOPT_SSL_VERIFYPEER, false); 
+    
+    $response = curl_exec($ch);
+    
+    if (curl_errno($ch)) {
+        jsonResponse('error', 'cURL Error fetching models: ' . curl_error($ch));
+    }
+    curl_close($ch);
+
+    $json = json_decode($response, true);
+    if (!isset($json['models'])) {
+        jsonResponse('error', 'Failed to fetch models list', $json);
+    }
+
+    $availableModels = [];
+    foreach ($json['models'] as $model) {
+        if (strpos($model['name'], 'gemini') !== false && 
+            in_array("generateContent", $model['supportedGenerationMethods'] ?? [])) {
+            
+            $id = str_replace('models/', '', $model['name']);
+            
+            $availableModels[] = [
+                'id' => $id,
+                'name' => $model['displayName'] ?? $id
+            ];
+        }
+    }
+
+    jsonResponse('success', 'Models retrieved', $availableModels);
+}
+
+function callGeminiAPI($text, $model = 'gemini-1.5-flash') {
+    $apiKey = GEMINI_API_KEY;
+    // Construct dynamic URL based on model selection
+    $url = GEMINI_API_BASE_URL . $model . ":generateContent?key=" . $apiKey;
 
     $data = [
         "contents" => [
@@ -349,23 +396,32 @@ function callGeminiAPI($text) {
         ]
     ];
 
-    $options = [
-        'http' => [
-            'header'  => "Content-type: application/json\r\n",
-            'method'  => 'POST',
-            'content' => json_encode($data)
-        ]
-    ];
+    $ch = curl_init($url);
+    curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
+    curl_setopt($ch, CURLOPT_POST, true);
+    curl_setopt($ch, CURLOPT_POSTFIELDS, json_encode($data));
+    curl_setopt($ch, CURLOPT_HTTPHEADER, [
+        'Content-Type: application/json'
+    ]);
+    // Disable SSL verification for local dev/hosting compatibility if certificates are missing
+    curl_setopt($ch, CURLOPT_SSL_VERIFYPEER, false); 
 
-    $context  = stream_context_create($options);
-    $result = file_get_contents($url, false, $context);
+    $response = curl_exec($ch);
 
-    if ($result === FALSE) {
-        return "Error calling Gemini API";
+    if (curl_errno($ch)) {
+        $error_msg = curl_error($ch);
+        curl_close($ch);
+        return "cURL Error: " . $error_msg;
     }
 
-    $json = json_decode($result, true);
-    return $json['candidates'][0]['content']['parts'][0]['text'] ?? "No response text found.";
-}
+    $httpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
+    curl_close($ch);
 
+    if ($httpCode !== 200) {
+        return "API Error (HTTP $httpCode): " . $response;
+    }
+
+    $json = json_decode($response, true);
+    return $json['candidates'][0]['content']['parts'][0]['text'] ?? "No response text found in JSON.";
+}
 ?>

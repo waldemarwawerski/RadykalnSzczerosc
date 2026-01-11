@@ -121,6 +121,14 @@
         <!-- View: AI Training -->
         <section id="view_ai">
             <h2>Trening AI</h2>
+            
+            <div style="margin-bottom: 15px; text-align: center;">
+                <label for="ai_model_selector">Wybierz model AI:</label>
+                <select id="ai_model_selector" style="padding: 5px; border-radius: 4px;">
+                    <option value="" disabled selected>Ładowanie modeli...</option>
+                </select>
+            </div>
+
             <div class="tabs">
                 <button class="tab active" onclick="app.switchTab('analysis')">Analiza Feedbacku</button>
                 <button class="tab" onclick="app.switchTab('roleplay')">Symulacja (Role-Play)</button>

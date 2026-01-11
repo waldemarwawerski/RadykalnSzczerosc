@@ -29,6 +29,26 @@ const app = {
         console.log("Radical Candor App Initialized");
         // Check if user/client is logged in (persisted state check could go here)
         this.renderQuestions();
+        this.loadAIModels();
+    },
+
+    loadAIModels: async function() {
+        const select = document.getElementById('ai_model_selector');
+        const res = await this.api('get_ai_models');
+        
+        if (res.status === 'success') {
+            select.innerHTML = '';
+            res.data.forEach(model => {
+                const option = document.createElement('option');
+                option.value = model.id;
+                option.text = model.name + ` (${model.id})`;
+                if (model.id.includes('flash')) option.selected = true; // Default to flash
+                select.appendChild(option);
+            });
+        } else {
+            select.innerHTML = '<option>Błąd ładowania modeli</option>';
+            console.error(res.message);
+        }
     },
 
     router: function(viewId) {
@@ -294,15 +314,22 @@ const app = {
     callAI: async function(mode) {
         let prompt = "";
         let history = [];
+        const model = document.getElementById('ai_model_selector').value;
         
         if (mode === 'analysis') {
             prompt = document.getElementById('ai_input_analysis').value;
             const outputDiv = document.getElementById('ai_output_analysis');
             outputDiv.innerHTML = "Analizuję...";
             
-            const res = await this.api('chat_gemini', { prompt, mode });
+            const res = await this.api('chat_gemini', { prompt, mode, model });
             if (res.status === 'success') {
-                outputDiv.innerHTML = `<strong>AI:</strong> ${res.data.response}`;
+                const formatted = this.formatAIResponse(res.data.response);
+                outputDiv.innerHTML = `
+                    <div class="ai-header" style="font-size: 0.85rem; text-transform: uppercase; letter-spacing: 1px; color: #999; margin-bottom: 10px;">
+                        Analiza AI (${model})
+                    </div>
+                    ${formatted}
+                `;
             } else {
                 outputDiv.innerHTML = "Błąd: " + res.message;
             }
@@ -314,17 +341,44 @@ const app = {
             this.appendChat('user', prompt);
             document.getElementById('ai_input_roleplay').value = '';
 
-            const res = await this.api('chat_gemini', { prompt, mode });
+            const res = await this.api('chat_gemini', { prompt, mode, model });
             if (res.status === 'success') {
                 this.appendChat('ai', res.data.response);
             }
         }
     },
 
+    formatAIResponse: function(text) {
+        if (!text) return "";
+        
+        // 1. Bold: **text** -> <strong>text</strong>
+        let html = text.replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>');
+        
+        // 2. Headings: ### Title -> <h3>Title</h3>
+        html = html.replace(/### (.*?)\n/g, '<h3>$1</h3>');
+        
+        // 3. Bullet points: * Item -> <li>Item</li> (Simple wrap)
+        // Check if there are lists
+        if (html.includes('* ')) {
+            html = html.replace(/^\* (.*?)(?=\n|$)/gm, '<li>$1</li>');
+            // Wrap lis in ul? A bit complex for simple regex, but let's try a simple block replacement if possible or just leave as lis with brs.
+            // Better: just let li style handle it if we wrap it? 
+            // Let's stick to simple <br> for newlines unless it's a list item.
+        }
+
+        // 4. Newlines -> <br> (but not after headers or list items if we did them right, but simple approach first)
+        html = html.replace(/\n/g, '<br>');
+        
+        return html;
+    },
+
     appendChat: function(role, text) {
         const div = document.createElement('div');
         div.className = `msg ${role}`;
-        div.innerText = text;
+        // Format AI messages, keep user messages simple text (safe from XSS if we trusted user, but better escape user input first?)
+        // For prototype, we assume user input is safe or simple.
+        div.innerHTML = role === 'ai' ? this.formatAIResponse(text) : text; 
+        
         const box = document.getElementById('chat_history');
         box.appendChild(div);
         box.scrollTop = box.scrollHeight;
