@@ -3,7 +3,11 @@ const app = {
         user: null, // {id, role, team_id}
         client: null,
         currentTeam: null,
-        token: null
+        token: null,
+        // Survey State
+        shuffledQuestions: [],
+        currentQuestionIndex: 0,
+        userAnswers: Array(12).fill(4) // Initialize with neutral answers (4)
     },
 
     questions: [
@@ -25,50 +29,32 @@ const app = {
         "Ukrywam swoje prawdziwe opinie, aby chronić własną pozycję."
     ],
 
+    quadrantDescriptions: {
+        'RC': {
+            name: 'Radykalna Szczerość (Radical Candor)',
+            desc: 'Działasz w sposób bezpośredni i troskliwy. Twoja komunikacja jest jasna, konstruktywna i oparta na wzajemnym szacunku. Budujesz zaufanie i pomagasz innym się rozwijać, jasno stawiając wymagania i dając rzetelną informację zwrotną.',
+            effects: 'Wysoka efektywność zespołu, silne relacje, szybki rozwój, innowacyjność. Ludzie czują się bezpiecznie, mogą popełniać błędy i uczyć się na nich. Budujesz kulturę otwartej komunikacji.'
+        },
+        'OA': {
+            name: 'Napastliwa Agresja (Obnoxious Aggression)',
+            desc: 'Jesteś bardzo bezpośredni w komunikacji, ale brakuje Ci troski o uczucia innych. Twoje informacje zwrotne mogą być raniące, krytyczne i demotywujące. Skupiasz się na wynikach, ignorując wpływ Twojego zachowania na ludzi.',
+            effects: 'Krótkoterminowe wyniki kosztem morale zespołu, wysoka rotacja, strach, unikanie kontaktu. Ludzie boją się wyrażać swoje zdanie, co prowadzi do ukrywania problemów i braku innowacji.'
+        },
+        'RE': {
+            name: 'Rujnująca Empatia (Ruinous Empathy)',
+            desc: 'Jesteś bardzo troskliwy i unikasz konfrontacji, aby nie ranić uczuć innych. Często powstrzymujesz się od dawania szczerej informacji zwrotnej, nawet gdy jest ona niezbędna do rozwoju. Stawiasz dobre relacje ponad prawdę i efektywność.',
+            effects: 'Niska efektywność zespołu, stagnacja, brak rozwoju. Ludzie nie wiedzą, co robią źle, a problemy narastają. Brak zaufania do managera, który nie potrafi podjąć trudnych decyzji.'
+        },
+        'MI': {
+            name: 'Manipulacyjna Nieszczerość (Manipulative Insincerity)',
+            desc: 'Brakuje Ci zarówno szczerości, jak i troski. Twoja komunikacja jest niejasna, manipulacyjna i często dwulicowa. Możesz stosować plotki, unikać odpowiedzialności lub działać z ukrytych motywów. Twoje działania są często odbierane jako nieszczere i niegodne zaufania.',
+            effects: 'Toksyczna atmosfera w zespole, brak zaufania, intrygi, pasywna agresja. Nikt nie czuje się bezpiecznie, ludzie skupiają się na obronie, a nie na pracy. Całkowity brak efektywności i zniszczone relacje.'
+        }
+    },
+
     init: function() {
         console.log("Radical Candor App Initialized");
-        // Check if user/client is logged in (persisted state check could go here)
-        this.renderQuestions();
         this.loadAIModels();
-    },
-
-    loadAIModels: async function() {
-        const select = document.getElementById('ai_model_selector');
-        const res = await this.api('get_ai_models');
-        
-        if (res.status === 'success') {
-            select.innerHTML = '';
-            res.data.forEach(model => {
-                const option = document.createElement('option');
-                option.value = model.id;
-                option.text = model.name + ` (${model.id})`;
-                if (model.id.includes('flash')) option.selected = true; // Default to flash
-                select.appendChild(option);
-            });
-        } else {
-            select.innerHTML = '<option>Błąd ładowania modeli</option>';
-            console.error(res.message);
-        }
-    },
-
-    router: function(viewId) {
-        // Hide all sections
-        document.querySelectorAll('section').forEach(el => el.classList.remove('active'));
-        // Show target
-        document.getElementById(viewId).classList.add('active');
-        
-        // Navigation Logic
-        const nav = document.getElementById('main_nav');
-        if (viewId === 'view_landing' || viewId === 'view_login' || viewId === 'view_register' || viewId === 'view_join') {
-            nav.style.display = 'none';
-        } else {
-            nav.style.display = 'block';
-        }
-
-        // Specific View Init
-        if (viewId === 'view_dashboard') {
-            this.loadDashboard();
-        }
     },
 
     api: async function(action, data = {}) {
@@ -78,15 +64,58 @@ const app = {
             formData.append(key, typeof data[key] === 'object' ? JSON.stringify(data[key]) : data[key]);
         }
 
+        console.log(`API Call: action=${action}`, data); // Log the API call
         try {
             const response = await fetch('api.php', {
                 method: 'POST',
                 body: formData
             });
-            return await response.json();
+            const result = await response.json();
+            console.log(`API Response for ${action}:`, result); // Log the API response
+            return result;
         } catch (error) {
-            console.error("API Error:", error);
+            console.error("API Error (fetch caught):", error); // More specific error
             return { status: 'error', message: 'Connection failed' };
+        }
+    },
+
+    router: function(viewId) {
+        document.querySelectorAll('section').forEach(el => el.classList.remove('active'));
+        document.getElementById(viewId).classList.add('active');
+        
+        const nav = document.getElementById('main_nav');
+        if (viewId === 'view_intro' || viewId === 'view_landing' || viewId === 'view_login' || viewId === 'view_register' || viewId === 'view_join') {
+            nav.style.display = 'none';
+        } else {
+            nav.style.display = 'block';
+        }
+
+        if (viewId === 'view_dashboard') {
+            this.loadDashboard();
+        }
+    },
+
+    loadAIModels: async function() {
+        const selectRespondent = document.getElementById('ai_model_selector');
+        const selectManager = document.getElementById('manager_ai_model_selector');
+        
+        const res = await this.api('get_ai_models');
+        
+        if (res.status === 'success') {
+            const optionsHTML = res.data.map(model => {
+                // Set 'models/gemini-2.5-flash' as default if available
+                const isSelected = (model.id === 'models/gemini-2.5-flash') ? 'selected' : ''; 
+                return `<option value="${model.id}" ${isSelected}>${model.name} (${model.id})</option>`;
+            }).join('');
+
+            selectRespondent.innerHTML = optionsHTML;
+            if(selectManager) selectManager.innerHTML = optionsHTML;
+
+        } else {
+            const errorHTML = '<option>Błąd ładowania modeli</option>';
+            selectRespondent.innerHTML = errorHTML;
+            if(selectManager) selectManager.innerHTML = errorHTML;
+            console.error(res.message);
         }
     },
 
@@ -119,11 +148,14 @@ const app = {
     handleJoin: async function(e) {
         e.preventDefault();
         const data = Object.fromEntries(new FormData(e.target));
-        const res = await this.api('join_team', data);
+        const teamName = data.team_name;
+        const accessCode = data.access_code;
+        
+        const res = await this.api('join_team', { team_name: teamName, access_code: accessCode });
         if (res.status === 'success') {
             this.state.user = { id: res.data.user_id };
             alert("Dołączono do zespołu: " + res.data.team_name);
-            this.router('view_test');
+            this.startTest(); // Start test after joining
         } else {
             alert(res.message);
         }
@@ -138,30 +170,97 @@ const app = {
 
     // --- Test & Results ---
 
-    renderQuestions: function() {
-        const container = document.getElementById('questions_container');
-        container.innerHTML = '';
-        this.questions.forEach((q, index) => {
-            const html = `
-                <div class="question-item">
-                    <p><strong>${index + 1}.</strong> ${q}</p>
-                    <div class="slider-container">
-                        <span>Nigdy</span>
-                        <input type="range" name="q${index}" min="1" max="7" value="4" step="1">
-                        <span>Zawsze</span>
-                    </div>
-                </div>
-            `;
-            container.innerHTML += html;
-        });
+    shuffleArray: function(array) {
+        for (let i = array.length - 1; i > 0; i--) {
+            const j = Math.floor(Math.random() * (i + 1));
+            [array[i], array[j]] = [array[j], array[i]];
+        }
+    },
+
+    startTest: function() {
+        // Reset test state
+        const questionIndices = Array.from({ length: this.questions.length }, (_, i) => i);
+        this.shuffleArray(questionIndices);
+        this.state.shuffledQuestions = questionIndices;
+        this.state.currentQuestionIndex = 0;
+        this.state.userAnswers = Array(this.questions.length).fill(4); // Reset answers to neutral
+        
+        this.router('view_test');
+        this.renderQuestion();
+    },
+
+    renderQuestion: function() {
+        const qContainer = document.getElementById('current_question_container');
+        const qCounter = document.getElementById('question_counter');
+        const progressFill = document.getElementById('progress_fill');
+        const prevBtn = document.getElementById('prev_question_btn');
+        const nextBtn = document.getElementById('next_question_btn');
+        const finishBtn = document.getElementById('finish_test_btn');
+
+        const currentQIndexInShuffled = this.state.currentQuestionIndex;
+        const originalQIndex = this.state.shuffledQuestions[currentQIndexInShuffled];
+        const questionText = this.questions[originalQIndex];
+
+        qContainer.innerHTML = `
+            <p>${questionText}</p>
+            <div class="rating-labels">
+                <span>Zupełnie się nie zgadzam</span>
+                <span>Nie zgadzam się</span>
+                <span>Częściowo się nie zgadzam</span>
+                <span>Trudno powiedzieć</span>
+                <span>Częściowo się zgadzam</span>
+                <span>Zgadzam się</span>
+                <span>Zupełnie się zgadzam</span>
+            </div>
+            <input type="range" id="current_answer_slider" min="1" max="7" value="${this.state.userAnswers[originalQIndex]}" step="1">
+        `;
+        
+        const slider = document.getElementById('current_answer_slider');
+        slider.oninput = (e) => {
+            this.state.userAnswers[originalQIndex] = parseInt(e.target.value);
+        };
+
+        qCounter.innerText = `Pytanie ${currentQIndexInShuffled + 1} z ${this.questions.length}`;
+        progressFill.style.width = `${((currentQIndexInShuffled + 1) / this.questions.length) * 100}%`;
+
+        prevBtn.style.display = currentQIndexInShuffled === 0 ? 'none' : 'inline-block';
+        nextBtn.style.display = currentQIndexInShuffled === this.questions.length - 1 ? 'none' : 'inline-block';
+        finishBtn.style.display = currentQIndexInShuffled === this.questions.length - 1 ? 'inline-block' : 'none';
+    },
+
+    nextQuestion: function() {
+        if (this.state.currentQuestionIndex < this.questions.length - 1) {
+            this.state.currentQuestionIndex++;
+            this.renderQuestion();
+        }
+    },
+
+    prevQuestion: function() {
+        if (this.state.currentQuestionIndex > 0) {
+            this.state.currentQuestionIndex--;
+            this.renderQuestion();
+        }
+    },
+
+    preventSubmit: function(e) {
+        e.preventDefault();
     },
 
     handleSubmitTest: async function(e) {
-        e.preventDefault();
-        const inputs = e.target.querySelectorAll('input[type=range]');
-        const answers = Array.from(inputs).map(input => parseInt(input.value));
+        console.log("handleSubmitTest called!"); // Diagnostic log
+        e.preventDefault(); // Prevent default form submission
+        // Ensure the last answer is saved
+        const slider = document.getElementById('current_answer_slider');
+        if (slider) {
+            const originalQIndex = this.state.shuffledQuestions[this.state.currentQuestionIndex];
+            this.state.userAnswers[originalQIndex] = parseInt(slider.value);
+            console.log("Saving answer for original Q index", originalQIndex, ":", this.state.userAnswers[originalQIndex]);
+        }
 
-        const res = await this.api('submit_test', { answers: answers });
+        console.log("Submitting test with answers:", this.state.userAnswers);
+        const res = await this.api('submit_test', { answers: this.state.userAnswers });
+        
+        console.log("API response for submit_test:", res);
         if (res.status === 'success') {
             this.router('view_results_respondent');
             this.renderChart('chart_respondent', [
@@ -169,22 +268,33 @@ const app = {
             ]);
             this.showResultDescription(res.data.x, res.data.y);
         } else {
-            alert(res.message);
+            alert("Błąd podczas przesyłania testu: " + res.message);
+            console.error("Test submission failed:", res);
         }
     },
 
     showResultDescription: function(x, y) {
-        let quadrant = "";
-        // Simple logic for quadrant detection
-        if (x > 0 && y > 0) quadrant = "Radical Candor (Radykalna Szczerość)";
-        else if (x > 0 && y <= 0) quadrant = "Obnoxious Aggression (Napastliwa Agresja)";
-        else if (x <= 0 && y > 0) quadrant = "Ruinous Empathy (Rujnująca Empatia)";
-        else quadrant = "Manipulative Insincerity (Manipulacyjna Nieszczerość)";
+        let quadrantKey = "";
+        let generalDescription = "";
 
-        document.getElementById('result_description').innerHTML = `
-            <h3>Twój styl: ${quadrant}</h3>
-            <p>Współrzędne: Szczerość ${x.toFixed(1)}, Troska ${y.toFixed(1)}</p>
-        `;
+        if (x > 0 && y > 0) {
+            quadrantKey = 'RC'; // Radical Candor
+            generalDescription = "Gratulacje! Twoje wyniki wskazują, że preferujesz styl Radykalnej Szczerości. Jesteś zarówno bezpośredni w komunikacji, jak i troszczysz się o dobro innych. To idealna pozycja do budowania efektywnego i zaufanego zespołu. Pamiętaj, aby konsekwentnie utrzymywać ten styl, reagując na zmieniające się potrzeby zespołu.";
+        } else if (x > 0 && y <= 0) {
+            quadrantKey = 'OA'; // Obnoxious Aggression
+            generalDescription = "Twoje wyniki sugerują, że możesz być odbierany jako agresywny w komunikacji. Jesteś bezpośredni, ale brakuje Ci troski o uczucia innych. Skupiasz się na wynikach, lecz możesz nieświadomie ranić i demotywować. Zastanów się, jak możesz wyrażać swoje oczekiwania, zachowując szacunek i empatię.";
+        } else if (x <= 0 && y > 0) {
+            quadrantKey = 'RE'; // Ruinous Empathy
+            generalDescription = "Wygląda na to, że bardzo troszczysz się o innych, ale możesz unikać trudnych rozmów. To prowadzi do Rujnującej Empatii, gdzie z obawy przed zranieniem nie dajesz szczerej informacji zwrotnej. Pomyśl, jak możesz odnaleźć odwagę, by być bardziej bezpośrednim, jednocześnie zachowując swoją empatię.";
+        } else {
+            quadrantKey = 'MI'; // Manipulative Insincerity
+            generalDescription = "Twoje wyniki wskazują na skłonności do Manipulacyjnej Nieszczerości. Być może unikasz bezpośredniej komunikacji i troski, co może prowadzić do nieufności w zespole. To najmniej efektywny styl zarządzania. Skup się na odbudowaniu zaufania poprzez otwartą i szczerą komunikację, nawet jeśli jest trudna.";
+        }
+
+        document.getElementById('result_description_general').innerHTML = generalDescription;
+        document.getElementById('current_quadrant_name').innerText = this.quadrantDescriptions[quadrantKey].name;
+        document.getElementById('current_quadrant_desc').innerText = this.quadrantDescriptions[quadrantKey].desc;
+        document.getElementById('current_quadrant_effects').innerText = this.quadrantDescriptions[quadrantKey].effects;
     },
 
     // --- Chart.js ---
@@ -193,7 +303,7 @@ const app = {
         const ctx = document.getElementById(canvasId).getContext('2d');
         
         // Convert Radical Candor coords (-36 to 36) to Chart coords if needed, 
-        // but Chart.js handles negatives fine. We will set fixed scales.
+        // but Chart.js handles negatives fine. We will set fixed scales. 
         
         const dataPoints = points.map(p => ({
             x: p.x,
@@ -280,10 +390,30 @@ const app = {
     },
 
     showCreateTeamModal: function() {
-        document.getElementById('modal_create_team').style.display = 'block';
+        console.log("showCreateTeamModal called!"); 
+        try {
+            const modal = document.getElementById('modal_create_team');
+            if (modal) {
+                console.log("Modal 'modal_create_team' found. Current display:", modal.style.display);
+                modal.style.display = 'block';
+                console.log("Modal 'modal_create_team' should now be visible. New display:", modal.style.display);
+            } else {
+                console.error("Error: Modal element 'modal_create_team' not found!");
+            }
+        } catch (e) {
+            console.error("Error showing modal:", e);
+        }
     },
 
     loadTeamDetails: async function(teamId, teamName) {
+        console.log("loadTeamDetails called with teamId:", teamId, "teamName:", teamName); // Added diagnostic log
+        // Check if teamId and teamName are provided
+        if (teamId === undefined || teamName === undefined) {
+            console.error("loadTeamDetails: teamId or teamName is undefined.");
+            // Potentially route to an error page or show a message
+            return;
+        }
+
         this.state.currentTeam = teamId;
         document.getElementById('team_details').style.display = 'block';
         document.getElementById('team_details_name').innerText = "Wyniki: " + teamName;
@@ -292,6 +422,12 @@ const app = {
         if (res.status === 'success') {
             const points = res.data.map(p => ({ x: p.coord_x, y: p.coord_y, color: 'rgba(54, 162, 235, 0.5)' }));
             this.renderChart('chart_manager', points);
+            // Store team data for PDF export
+            this.state.currentTeamData = {
+                id: teamId,
+                name: teamName,
+                results: res.data // Store raw results for potential AI report generation
+            };
         } else {
             alert(res.message); // Likely "Not enough data"
         }
@@ -384,17 +520,115 @@ const app = {
         box.scrollTop = box.scrollHeight;
     },
 
-    generateReport: async function() {
-        if (!this.state.currentTeam) return;
-        const output = document.getElementById('ai_report_output');
-        output.innerHTML = "Generowanie raportu...";
-        
-        const res = await this.api('generate_report', { team_id: this.state.currentTeam });
-        if (res.status === 'success') {
-            output.innerHTML = res.data.report;
-        } else {
-            output.innerHTML = "Błąd: " + res.message;
+    exportResultsToPdf: function(reportType) {
+        let chartImgUrl = '';
+        let reportTitle = '';
+        let summaryHtml = '';
+        let detailsHtml = '';
+        let filename = 'raport.pdf';
+
+        // 1. Gather Data
+        if (reportType === 'respondent') {
+            filename = 'moj_wynik_radical_candor.pdf';
+            const sourceElement = document.querySelector('#view_results_respondent');
+            const canvas = sourceElement.querySelector('canvas');
+            if (canvas) chartImgUrl = canvas.toDataURL('image/png');
+
+            reportTitle = "Twój Wynik Radical Candor Matrix";
+            
+            const generalDesc = document.getElementById('result_description_general').innerText;
+            summaryHtml = `<h3>Podsumowanie:</h3><p>${generalDesc}</p>`;
+
+            const quadName = document.getElementById('current_quadrant_name').innerText;
+            const quadDesc = document.getElementById('current_quadrant_desc').innerText;
+            const quadEffects = document.getElementById('current_quadrant_effects').innerText;
+
+            detailsHtml = `
+                <h3 style="color: #e74c3c; margin-top: 20px;">Twój Styl: ${quadName}</h3>
+                <p><strong>Opis:</strong> ${quadDesc}</p>
+                <p><strong>Przewidywane Skutki:</strong> ${quadEffects}</p>
+            `;
+
+        } else if (reportType === 'manager') {
+            if (document.getElementById('team_details').style.display === 'none') {
+                alert("Najpierw otwórz szczegóły zespołu.");
+                return;
+            }
+            filename = 'raport_zespolu.pdf';
+            const sourceElement = document.getElementById('team_details');
+            const canvas = sourceElement.querySelector('canvas');
+            if (canvas) chartImgUrl = canvas.toDataURL('image/png');
+
+            reportTitle = document.getElementById('team_details_name').innerText;
+            // Add manager specific details if needed here
         }
+
+        if (!chartImgUrl) {
+            alert("Błąd: Nie udało się pobrać wykresu.");
+            return;
+        }
+
+        // 2. Open New Window
+        const printWindow = window.open('', '_blank');
+        if (!printWindow) {
+            alert("Zablokowano wyskakujące okno. Proszę zezwolić na pop-upy.");
+            return;
+        }
+
+        // 3. Write HTML content
+        const htmlContent = `
+            <!DOCTYPE html>
+            <html>
+            <head>
+                <title>${reportTitle}</title>
+                <script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js"><\/script>
+                <style>
+                    body { font-family: Arial, sans-serif; padding: 40px; color: #333; line-height: 1.6; }
+                    h1 { text-align: center; color: #2c3e50; margin-bottom: 30px; }
+                    h3 { border-bottom: 2px solid #3498db; padding-bottom: 5px; color: #2c3e50; }
+                    img { display: block; margin: 0 auto 30px auto; max-width: 600px; width: 100%; }
+                    p { margin-bottom: 10px; font-size: 14px; }
+                    strong { color: #2c3e50; }
+                </style>
+            </head>
+            <body>
+                <h1>${reportTitle}</h1>
+                <img src="${chartImgUrl}" alt="Wykres">
+                ${summaryHtml}
+                ${detailsHtml}
+                
+                <script>
+                    window.onload = function() {
+                        const opt = {
+                            margin:       10,
+                            filename:     '${filename}',
+                            image:        { type: 'jpeg', quality: 0.98 },
+                            html2canvas:  { scale: 2 },
+                            jsPDF:        { unit: 'mm', format: 'a4', orientation: 'portrait' }
+                        };
+                        
+                        // Generate PDF
+                        html2pdf().set(opt).from(document.body).save().then(function() {
+                            // Optional: Close window after download (commented out for debugging)
+                            // window.close(); 
+                        });
+                    };
+                <\/script>
+            </body>
+            </html>
+        `;
+
+        printWindow.document.write(htmlContent);
+        printWindow.document.close(); // Necessary for IE >= 10
+        printWindow.focus(); // Necessary for IE >= 10
+    },
+
+    // Helper to determine quadrant key (duplicated from showResultDescription but needed separately)
+    getQuadrant: function(x, y) {
+        if (x > 0 && y > 0) return 'RC';
+        else if (x > 0 && y <= 0) return 'OA';
+        else if (x <= 0 && y > 0) return 'RE';
+        else return 'MI';
     }
 };
 

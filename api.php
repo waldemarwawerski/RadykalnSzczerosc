@@ -1,5 +1,8 @@
 <?php
 require_once 'config.php';
+// require_once 'vendor/autoload.php'; // Dompdf autoloader - COMMENTED OUT TO FIX 500 ERROR
+
+// use Dompdf\Dompdf; // Dompdf class - COMMENTED OUT
 
 header('Content-Type: application/json');
 
@@ -52,11 +55,66 @@ switch ($action) {
     case 'generate_report':
         generateTeamReport($pdo);
         break;
+    case 'export_pdf':
+        exportPdf($pdo);
+        break;
     default:
         jsonResponse('error', 'Invalid action');
 }
 
 // Functions
+
+function exportPdf($pdo) {
+    jsonResponse('error', 'PDF export is temporarily disabled due to server configuration issues.');
+    /*
+    // This function will generate the PDF report for a respondent or team
+    // Input: user_id (for respondent) OR team_id (for manager) AND data (x, y coords, descriptions)
+    $reportType = $_POST['report_type'] ?? 'respondent'; // 'respondent' or 'manager'
+    $userId = $_SESSION['user_id'] ?? null;
+    $teamId = $_POST['team_id'] ?? null;
+    $userData = json_decode($_POST['user_data'] ?? '[]', true); // User's x,y, etc.
+    $teamData = json_decode($_POST['team_data'] ?? '[]', true); // Team's x,y, etc.
+
+    if ($reportType === 'respondent' && (!$userId || empty($userData))) {
+        jsonResponse('error', 'Missing respondent data for PDF export.');
+    }
+    if ($reportType === 'manager' && (!$teamId || empty($teamData))) {
+        jsonResponse('error', 'Missing team data for PDF export.');
+    }
+
+    $dompdf = new Dompdf();
+    $dompdf->setPaper('A4', 'portrait');
+
+    // Here we will generate the HTML content for the PDF
+    // For now, a placeholder
+    $html = "
+        <h1>Raport Radical Candor</h1>
+        <p>Typ raportu: " . htmlspecialchars($reportType) . "</p>
+    ";
+
+    if ($reportType === 'respondent') {
+        $html .= "<h2>Twój Wynik</h2>";
+        $html .= "<p>Współrzędne: X=" . htmlspecialchars($userData['x'] ?? 'N/A') . ", Y=" . htmlspecialchars($userData['y'] ?? 'N/A') . "</p>";
+        $html .= "<p>Styl: " . htmlspecialchars($userData['quadrant_name'] ?? 'N/A') . "</p>";
+        $html .= "<p>Opis: " . htmlspecialchars($userData['quadrant_desc'] ?? 'N/A') . "</p>";
+        $html .= "<p>Skutki: " . htmlspecialchars($userData['quadrant_effects'] ?? 'N/A') . "</p>";
+    } elseif ($reportType === 'manager') {
+        $html .= "<h2>Raport Zespołu</h2>";
+        $html .= "<p>ID Zespołu: " . htmlspecialchars($teamId ?? 'N/A') . "</p>";
+        $html .= "<p>Średnia zespołu: X=" . htmlspecialchars($teamData['avg_x'] ?? 'N/A') . ", Y=" . htmlspecialchars($teamData['avg_y'] ?? 'N/A') . "</p>";
+        // Include manager AI report if available
+        $html .= "<p>Raport AI: " . htmlspecialchars($teamData['ai_report'] ?? 'N/A') . "</p>";
+    }
+
+
+    $dompdf->loadHtml($html);
+    $dompdf->render();
+    
+    // Output PDF to the browser
+    $dompdf->stream("raport_radical_candor_" . $reportType . ".pdf", ["Attachment" => false]);
+    exit;
+    */
+}
 
 function registerClient($pdo) {
     $email = $_POST['email'] ?? '';
@@ -134,14 +192,19 @@ function getClientTeams($pdo) {
 }
 
 function joinTeam($pdo) {
+    $teamName = $_POST['team_name'] ?? '';
     $code = $_POST['access_code'] ?? '';
 
-    $stmt = $pdo->prepare("SELECT * FROM teams WHERE access_code = ?");
-    $stmt->execute([$code]);
+    if (!$teamName || !$code) {
+        jsonResponse('error', 'Nazwa zespołu i kod dostępu są wymagane.');
+    }
+
+    $stmt = $pdo->prepare("SELECT * FROM teams WHERE name = ? AND access_code = ?");
+    $stmt->execute([$teamName, $code]);
     $team = $stmt->fetch();
 
     if (!$team) {
-        jsonResponse('error', 'Invalid team code');
+        jsonResponse('error', 'Nieprawidłowa nazwa zespołu lub kod dostępu.');
     }
 
     // Create a new respondent user
@@ -244,7 +307,7 @@ function chatGemini($pdo) {
     $prompt = $_POST['prompt'] ?? '';
     $history = $_POST['history'] ?? []; 
     $mode = $_POST['mode'] ?? 'analysis';
-    $model = $_POST['model'] ?? 'gemini-1.5-flash'; // Get model from frontend
+    $model = $_POST['model'] ?? 'models/gemini-2.5-flash'; // Default to full name
 
     if (!$prompt) jsonResponse('error', 'Prompt required');
 
@@ -275,6 +338,7 @@ function generateTeamReport($pdo) {
     }
     
     $teamId = $_POST['team_id'] ?? 0;
+    $model = $_POST['model'] ?? 'models/gemini-2.5-flash'; // Get model from frontend
     
     // Verify ownership
     $stmt = $pdo->prepare("SELECT id FROM teams WHERE id = ? AND client_id = ?");
@@ -338,8 +402,8 @@ function generateTeamReport($pdo) {
     
     Styl: Merytoryczny, bezpośredni, psychologiczny.";
 
-    // Call AI with a capable model for reports (e.g., Flash or Pro)
-    $aiReport = callGeminiAPI($prompt, 'gemini-1.5-flash');
+    // Call AI with selected model
+    $aiReport = callGeminiAPI($prompt, $model);
 
     jsonResponse('success', 'Report generated', ['report' => $aiReport]);
 }
@@ -369,7 +433,8 @@ function getAIModels() {
         if (strpos($model['name'], 'gemini') !== false && 
             in_array("generateContent", $model['supportedGenerationMethods'] ?? [])) {
             
-            $id = str_replace('models/', '', $model['name']);
+            // Use full name as ID (e.g., 'models/gemini-2.5-flash')
+            $id = $model['name'];
             
             $availableModels[] = [
                 'id' => $id,
@@ -381,9 +446,10 @@ function getAIModels() {
     jsonResponse('success', 'Models retrieved', $availableModels);
 }
 
-function callGeminiAPI($text, $model = 'gemini-1.5-flash') {
+function callGeminiAPI($text, $model = 'models/gemini-2.5-flash') {
     $apiKey = GEMINI_API_KEY;
     // Construct dynamic URL based on model selection
+    // URL structure: BASE_URL + model_name + :generateContent
     $url = GEMINI_API_BASE_URL . $model . ":generateContent?key=" . $apiKey;
 
     $data = [

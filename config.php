@@ -8,7 +8,7 @@ define('DB_PASS', 'Winter1970');
 
 // Gemini API Configuration
 define('GEMINI_API_KEY', 'AIzaSyDVgFvlYL9d4xkEHWwe2bSmLHw9xXoNMWc');
-define('GEMINI_API_BASE_URL', 'https://generativelanguage.googleapis.com/v1beta/models/');
+define('GEMINI_API_BASE_URL', 'https://generativelanguage.googleapis.com/v1beta/');
 
 // App Configuration
 define('APP_DEBUG', true); // Set to false in production
