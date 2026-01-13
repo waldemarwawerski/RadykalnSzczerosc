@@ -313,9 +313,9 @@ function chatGemini($pdo) {
 
     $systemPrompt = "";
     if ($mode === 'analysis') {
-        $systemPrompt = "Jesteś ekspertem Radical Candor. Przeanalizuj podany feedback. Oceń poziom Troski (Care Personally) i Szczerości (Challenge Directly). Jeśli feedback jest słaby (np. agresywny lub zbyt miękki), zaproponuj lepszą wersję zgodnie z zasadami Radical Candor.";
+        $systemPrompt = "Jesteś ekspertem metodyki Radykalna Szczerość (Radical Candor). Przeanalizuj podany feedback. Oceń poziom Troski o Ludzi (Care Personally) i Bezpośredniej Szczerości (Challenge Directly). Jeśli feedback jest słaby (np. agresywny lub zbyt miękki), zaproponuj lepszą wersję zgodnie z zasadami Radykalnej Szczerości.";
     } elseif ($mode === 'roleplay') {
-        $systemPrompt = "Jesteś trudnym pracownikiem w symulacji role-play. Użytkownik to Twój manager, który próbuje dać Ci feedback. Odpowiadaj krótko, realistycznie, czasem defensywnie, ale reaguj na dobre zastosowanie Radical Candor.";
+        $systemPrompt = "Jesteś trudnym pracownikiem w symulacji role-play. Użytkownik to Twój manager, który próbuje dać Ci feedback. Odpowiadaj krótko, realistycznie, czasem defensywnie, ale reaguj na dobre zastosowanie Radykalnej Szczerości.";
     }
 
     $finalPrompt = $systemPrompt . "\n\nKontekst/Wiadomość użytkownika: " . $prompt;
@@ -385,14 +385,14 @@ function generateTeamReport($pdo) {
     $stats['avg_y'] = $sum_y / $stats['count'];
 
     // Construct Prompt
-    $prompt = "Jesteś konsultantem biznesowym specjalizującym się w metodologii Radical Candor. 
+    $prompt = "Jesteś konsultantem biznesowym specjalizującym się w metodologii Radykalna Szczerość (Radical Candor). 
     Przygotuj raport dla managera na podstawie poniższych statystyk zespołu:
     - Liczba osób: {$stats['count']}
-    - Radical Candor (Szczerość i Troska): {$stats['RC']} osób
-    - Obnoxious Aggression (Agresja): {$stats['OA']} osób
-    - Ruinous Empathy (Zbyt duża empatia, brak szczerości): {$stats['RE']} osób
-    - Manipulative Insincerity (Brak szczerości i troski): {$stats['MI']} osób
-    - Średnia zespołu: Oś Szczerości (Challenge Directly) = {$stats['avg_x']}, Oś Troski (Care Personally) = {$stats['avg_y']}.
+    - Radykalna Szczerość (Troska i Szczerość): {$stats['RC']} osób
+    - Napastliwa Agresja (Agresja): {$stats['OA']} osób
+    - Rujnująca Empatia (Zbyt duża empatia, brak szczerości): {$stats['RE']} osób
+    - Manipulacyjna Nieszczerość (Brak szczerości i troski): {$stats['MI']} osób
+    - Średnia zespołu: Oś Szczerości (Bezpośrednia Szczerość) = {$stats['avg_x']}, Oś Troski (Troska o Ludzi) = {$stats['avg_y']}.
     (Zakres osi to od -36 do +36).
 
     Zadanie:

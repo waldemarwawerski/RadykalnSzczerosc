@@ -217,70 +217,64 @@ input:focus, textarea:focus, select:focus {
     color: var(--primary);
     margin-bottom: 25px;
 }
-.slider-container { /* Zmieniono na flex-row dla suwaka */
+/* Question Options (New) */
+.options-container {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    margin-top: 20px;
+    width: 100%;
+    max-width: 500px;
+    margin-left: auto;
+    margin-right: auto;
+}
+
+.option-item {
     display: flex;
     align-items: center;
-    gap: 15px;
-    width: 100%;
-    max-width: 400px;
-    margin-left: auto;
-    margin-right: auto;
-}
-.rating-labels { /* Nowe: etykiety dla suwaka 7-punktowego */
-    display: flex;
-    justify-content: space-between;
-    width: 100%;
-    max-width: 400px; /* Dopasuj do szerokości suwaka */
-    font-size: 0.85rem;
-    color: #666;
-    margin-top: 5px;
-    padding: 0 5px; /* Delikatne odstępy od krawędzi suwaka */
-    text-align: center;
-    margin-left: auto;
-    margin-right: auto;
-}
-.rating-labels span {
-    flex: 1; /* Równa szerokość dla wszystkich */
-    white-space: nowrap; /* Zapobiega zawijaniu tekstu */
-    overflow: hidden;
-    text-overflow: ellipsis; /* Dodaj trzy kropki, jeśli tekst jest za długi */
-    padding: 0 2px; /* Drobne odstępy między etykietami */
-}
-/* Ensure the first and last labels are fully visible and aligned */
-.rating-labels span:first-child { text-align: left; flex: none; width: auto; }
-.rating-labels span:last-child { text-align: right; flex: none; width: auto; }
-
-.slider-container input[type=range] {
-    flex: 1;
-    width: 100%;
-    -webkit-appearance: none;
-    appearance: none;
-    background: #f0f0f0;
-    outline: none;
-    height: 10px;
-    border-radius: 5px;
+    padding: 12px 20px;
+    border: 2px solid #eee;
+    border-radius: 8px;
     cursor: pointer;
-    transition: background 0.2s ease;
+    transition: all 0.2s ease;
+    background: white;
 }
-.slider-container input[type=range]::-webkit-slider-thumb {
-    -webkit-appearance: none;
-    appearance: none;
-    width: 25px;
-    height: 25px;
+
+.option-item:hover {
+    border-color: var(--secondary);
+    background-color: #f8fbff;
+}
+
+.option-item.selected {
+    border-color: var(--secondary);
+    background-color: rgba(52, 152, 219, 0.1);
+    color: var(--secondary);
+    font-weight: 600;
+}
+
+.option-val {
+    font-weight: 700;
+    margin-right: 15px;
+    color: var(--secondary);
+    border: 1px solid var(--secondary);
     border-radius: 50%;
-    background: var(--secondary);
-    cursor: grab;
-    box-shadow: 0 2px 5px rgba(0,0,0,0.2);
-    margin-top: -8px; /* Centrowanie kciuka */
+    width: 28px;
+    height: 28px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 0.9rem;
 }
-.slider-container input[type=range]::-moz-range-thumb {
-    width: 25px;
-    height: 25px;
-    border-radius: 50%;
-    background: var(--secondary);
-    cursor: grab;
-    box-shadow: 0 2px 5px rgba(0,0,0,0.2);
+
+.option-text {
+    flex: 1;
+    text-align: left;
 }
+
+/* Old Slider Styles (Removed/Commented out for cleanliness) */
+/* .rating-labels { ... } */
+/* .slider-container { ... } */
+
 .progress-bar {
     background-color: #e0e0e0;
     height: 8px;
@@ -497,7 +491,8 @@ input:focus, textarea:focus, select:focus {
         font-size: 0.95rem;
     }
     .chart-container {
-        height: 350px;
+        height: 400px; /* Wysokość na mobilu */
+        min-height: 400px; /* Zapewnij minimalną wysokość */
     }
     #current_question_container p {
         font-size: 1.1rem;

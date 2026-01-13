@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Radical Candor Matrix AI</title>
+    <title>Matryca Radykalnej Szczerości AI</title>
     <meta name="theme-color" content="#3498db">
     <link rel="stylesheet" href="css/style.css">
     <!-- Chart.js -->
@@ -15,7 +15,7 @@
 
     <header>
         <div class="container">
-            <h1>Radical Candor Matrix</h1>
+            <h1>Matryca Radykalnej Szczerości</h1>
             <nav id="main_nav" style="display:none;">
                 <button onclick="app.router('view_ai')" id="nav_ai">Trening AI</button>
                 <button onclick="app.logout()">Wyloguj</button>
@@ -28,7 +28,7 @@
         <!-- View: Intro (New Start Page) -->
         <section id="view_intro" class="active">
             <div class="hero">
-                <h2>Witaj w Radical Candor Matrix AI</h2>
+                <h2>Witaj w Matryca Radykalnej Szczerości AI</h2>
                 <p>Odkryj swój styl zarządzania i rozwijaj kluczowe kompetencje.</p>
                 <p>Ta ankieta pomoże Ci zrozumieć, jak inni postrzegają Twoje działania w kontekście Troski i Szczerości.</p>
                 <p>Odpowiedz szczerze na 12 pytań, aby otrzymać spersonalizowaną analizę i wskazówki AI.</p>
@@ -89,7 +89,7 @@
 
         <!-- View: Test -->
         <section id="view_test">
-            <h2 id="test_title">Ankieta Radical Candor</h2>
+            <h2 id="test_title">Ankieta Radykalnej Szczerości</h2>
             <p id="question_counter">Pytanie 1 z 12</p>
             <div class="progress-bar"><div id="progress_fill"></div></div>
             
@@ -163,25 +163,13 @@
                 </select>
             </div>
 
-            <div class="tabs">
-                <button class="tab active" onclick="app.switchTab('analysis')">Analiza Feedbacku</button>
-                <button class="tab" onclick="app.switchTab('roleplay')">Symulacja (Role-Play)</button>
-            </div>
-
-            <div id="tab_analysis" class="tab-content active">
+            <!-- Removed Tabs, only Analysis remains -->
+            <div id="ai_analysis_container">
                 <p>Wpisz feedback, który chcesz przekazać pracownikowi. AI oceni go.</p>
                 <textarea id="ai_input_analysis" rows="4" placeholder="Np. 'Twoja prezentacja była beznadziejna, popraw to.'"></textarea>
                 <button class="btn primary" onclick="app.callAI('analysis')">Analizuj</button>
                 <div id="ai_output_analysis" class="ai-response"></div>
-            </div>
-
-            <div id="tab_roleplay" class="tab-content">
-                <p>Rozmowa z trudnym pracownikiem.</p>
-                <div id="chat_history" class="chat-box"></div>
-                <div class="chat-input">
-                    <input type="text" id="ai_input_roleplay" placeholder="Twoja odpowiedź...">
-                    <button class="btn primary" onclick="app.callAI('roleplay')">Wyślij</button>
-                </div>
+                <button id="btn_export_ai_pdf" class="btn secondary" style="margin-top: 10px;" onclick="app.exportResultsToPdf('ai_analysis')">Eksportuj Analizę do PDF</button>
             </div>
         </section>
 
@@ -201,8 +189,5 @@
     </div>
 
     <script src="js/app.js"></script>
-
-    <!-- Temporary Test Button for Debugging -->
-    <button style="position:fixed; bottom: 10px; right: 10px; z-index:99999;" onclick="console.log('Test button clicked!'); app.showCreateTeamModal()">TEST MODAL</button>
 </body>
 </html>

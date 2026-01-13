@@ -7,7 +7,7 @@ const app = {
         // Survey State
         shuffledQuestions: [],
         currentQuestionIndex: 0,
-        userAnswers: Array(12).fill(4) // Initialize with neutral answers (4)
+        userAnswers: Array(12).fill(null) // Initialize with null (no answer)
     },
 
     questions: [
@@ -31,22 +31,22 @@ const app = {
 
     quadrantDescriptions: {
         'RC': {
-            name: 'Radykalna Szczerość (Radical Candor)',
+            name: 'Radykalna Szczerość',
             desc: 'Działasz w sposób bezpośredni i troskliwy. Twoja komunikacja jest jasna, konstruktywna i oparta na wzajemnym szacunku. Budujesz zaufanie i pomagasz innym się rozwijać, jasno stawiając wymagania i dając rzetelną informację zwrotną.',
             effects: 'Wysoka efektywność zespołu, silne relacje, szybki rozwój, innowacyjność. Ludzie czują się bezpiecznie, mogą popełniać błędy i uczyć się na nich. Budujesz kulturę otwartej komunikacji.'
         },
         'OA': {
-            name: 'Napastliwa Agresja (Obnoxious Aggression)',
+            name: 'Napastliwa Agresja',
             desc: 'Jesteś bardzo bezpośredni w komunikacji, ale brakuje Ci troski o uczucia innych. Twoje informacje zwrotne mogą być raniące, krytyczne i demotywujące. Skupiasz się na wynikach, ignorując wpływ Twojego zachowania na ludzi.',
             effects: 'Krótkoterminowe wyniki kosztem morale zespołu, wysoka rotacja, strach, unikanie kontaktu. Ludzie boją się wyrażać swoje zdanie, co prowadzi do ukrywania problemów i braku innowacji.'
         },
         'RE': {
-            name: 'Rujnująca Empatia (Ruinous Empathy)',
+            name: 'Rujnująca Empatia',
             desc: 'Jesteś bardzo troskliwy i unikasz konfrontacji, aby nie ranić uczuć innych. Często powstrzymujesz się od dawania szczerej informacji zwrotnej, nawet gdy jest ona niezbędna do rozwoju. Stawiasz dobre relacje ponad prawdę i efektywność.',
             effects: 'Niska efektywność zespołu, stagnacja, brak rozwoju. Ludzie nie wiedzą, co robią źle, a problemy narastają. Brak zaufania do managera, który nie potrafi podjąć trudnych decyzji.'
         },
         'MI': {
-            name: 'Manipulacyjna Nieszczerość (Manipulative Insincerity)',
+            name: 'Manipulacyjna Nieszczerość',
             desc: 'Brakuje Ci zarówno szczerości, jak i troski. Twoja komunikacja jest niejasna, manipulacyjna i często dwulicowa. Możesz stosować plotki, unikać odpowiedzialności lub działać z ukrytych motywów. Twoje działania są często odbierane jako nieszczere i niegodne zaufania.',
             effects: 'Toksyczna atmosfera w zespole, brak zaufania, intrygi, pasywna agresja. Nikt nie czuje się bezpiecznie, ludzie skupiają się na obronie, a nie na pracy. Całkowity brak efektywności i zniszczone relacje.'
         }
@@ -183,13 +183,17 @@ const app = {
         this.shuffleArray(questionIndices);
         this.state.shuffledQuestions = questionIndices;
         this.state.currentQuestionIndex = 0;
-        this.state.userAnswers = Array(this.questions.length).fill(4); // Reset answers to neutral
+        this.state.userAnswers = Array(this.questions.length).fill(null); // Reset answers to null
         
         this.router('view_test');
         this.renderQuestion();
     },
 
     renderQuestion: function() {
+        // Remove header title for better mobile focus
+        const testTitle = document.getElementById('test_title');
+        if(testTitle) testTitle.style.display = 'none';
+
         const qContainer = document.getElementById('current_question_container');
         const qCounter = document.getElementById('question_counter');
         const progressFill = document.getElementById('progress_fill');
@@ -200,32 +204,64 @@ const app = {
         const currentQIndexInShuffled = this.state.currentQuestionIndex;
         const originalQIndex = this.state.shuffledQuestions[currentQIndexInShuffled];
         const questionText = this.questions[originalQIndex];
+        const currentAnswer = this.state.userAnswers[originalQIndex];
+
+        const options = [
+            { val: 1, text: "Zupełnie się nie zgadzam" },
+            { val: 2, text: "Nie zgadzam się" },
+            { val: 3, text: "Częściowo się nie zgadzam" },
+            { val: 4, text: "Trudno powiedzieć" },
+            { val: 5, text: "Częściowo się zgadzam" },
+            { val: 6, text: "Zgadzam się" },
+            { val: 7, text: "Zupełnie się zgadzam" }
+        ];
+
+        let optionsHTML = '<div class="options-container">';
+        options.forEach(opt => {
+            const isSelected = currentAnswer === opt.val ? 'selected' : '';
+            optionsHTML += `
+                <div class="option-item ${isSelected}" onclick="app.selectOption(${originalQIndex}, ${opt.val})">
+                    <span class="option-val">${opt.val}</span>
+                    <span class="option-text">${opt.text}</span>
+                </div>
+            `;
+        });
+        optionsHTML += '</div>';
 
         qContainer.innerHTML = `
             <p>${questionText}</p>
-            <div class="rating-labels">
-                <span>Zupełnie się nie zgadzam</span>
-                <span>Nie zgadzam się</span>
-                <span>Częściowo się nie zgadzam</span>
-                <span>Trudno powiedzieć</span>
-                <span>Częściowo się zgadzam</span>
-                <span>Zgadzam się</span>
-                <span>Zupełnie się zgadzam</span>
-            </div>
-            <input type="range" id="current_answer_slider" min="1" max="7" value="${this.state.userAnswers[originalQIndex]}" step="1">
+            ${optionsHTML}
         `;
         
-        const slider = document.getElementById('current_answer_slider');
-        slider.oninput = (e) => {
-            this.state.userAnswers[originalQIndex] = parseInt(e.target.value);
-        };
-
         qCounter.innerText = `Pytanie ${currentQIndexInShuffled + 1} z ${this.questions.length}`;
         progressFill.style.width = `${((currentQIndexInShuffled + 1) / this.questions.length) * 100}%`;
 
+        // Navigation logic
         prevBtn.style.display = currentQIndexInShuffled === 0 ? 'none' : 'inline-block';
-        nextBtn.style.display = currentQIndexInShuffled === this.questions.length - 1 ? 'none' : 'inline-block';
-        finishBtn.style.display = currentQIndexInShuffled === this.questions.length - 1 ? 'inline-block' : 'none';
+        
+        // Next button: show if not last question, disable if no answer
+        if (currentQIndexInShuffled < this.questions.length - 1) {
+            nextBtn.style.display = 'inline-block';
+            nextBtn.disabled = (currentAnswer === null);
+            finishBtn.style.display = 'none';
+        } else {
+            // Last question
+            nextBtn.style.display = 'none';
+            finishBtn.style.display = 'inline-block';
+            finishBtn.disabled = (currentAnswer === null);
+        }
+    },
+
+    selectOption: function(qIndex, val) {
+        this.state.userAnswers[qIndex] = val;
+        this.renderQuestion(); // Update UI to show selection
+
+        // Auto-advance if not the last question
+        if (this.state.currentQuestionIndex < this.questions.length - 1) {
+            setTimeout(() => {
+                this.nextQuestion();
+            }, 350); // Small delay for visual feedback
+        }
     },
 
     nextQuestion: function() {
@@ -249,12 +285,11 @@ const app = {
     handleSubmitTest: async function(e) {
         console.log("handleSubmitTest called!"); // Diagnostic log
         e.preventDefault(); // Prevent default form submission
-        // Ensure the last answer is saved
-        const slider = document.getElementById('current_answer_slider');
-        if (slider) {
-            const originalQIndex = this.state.shuffledQuestions[this.state.currentQuestionIndex];
-            this.state.userAnswers[originalQIndex] = parseInt(slider.value);
-            console.log("Saving answer for original Q index", originalQIndex, ":", this.state.userAnswers[originalQIndex]);
+        
+        // Check if all questions are answered
+        if (this.state.userAnswers.includes(null)) {
+            alert("Proszę odpowiedzieć na wszystkie pytania przed zakończeniem.");
+            return;
         }
 
         console.log("Submitting test with answers:", this.state.userAnswers);
@@ -302,9 +337,6 @@ const app = {
     renderChart: function(canvasId, points) {
         const ctx = document.getElementById(canvasId).getContext('2d');
         
-        // Convert Radical Candor coords (-36 to 36) to Chart coords if needed, 
-        // but Chart.js handles negatives fine. We will set fixed scales. 
-        
         const dataPoints = points.map(p => ({
             x: p.x,
             y: p.y
@@ -314,6 +346,70 @@ const app = {
             this.chartInstance.destroy();
         }
 
+        // Plugin to draw quadrants background
+        const quadrantPlugin = {
+            id: 'quadrants',
+            beforeDraw: (chart) => {
+                const {ctx, chartArea: {top, bottom, left, right, width, height}, scales: {x, y}} = chart;
+                const midX = x.getPixelForValue(0);
+                const midY = y.getPixelForValue(0);
+
+                ctx.save();
+
+                // 1. Top-Right (X>0, Y>0): Radykalna Szczerość -> Green
+                ctx.fillStyle = 'rgba(46, 204, 113, 0.2)'; 
+                ctx.fillRect(midX, top, right - midX, midY - top);
+                
+                // 2. Bottom-Right (X>0, Y<0): Napastliwa Agresja -> Yellow
+                ctx.fillStyle = 'rgba(241, 196, 15, 0.2)'; 
+                ctx.fillRect(midX, midY, right - midX, bottom - midY);
+
+                // 3. Top-Left (X<0, Y>0): Rujnująca Empatia -> Yellow
+                ctx.fillStyle = 'rgba(241, 196, 15, 0.2)'; 
+                ctx.fillRect(left, top, midX - left, midY - top);
+
+                // 4. Bottom-Left (X<0, Y<0): Manipulacyjna Nieszczerość -> Red
+                ctx.fillStyle = 'rgba(231, 76, 60, 0.2)'; 
+                ctx.fillRect(left, midY, midX - left, bottom - midY);
+
+                // Labels logic
+                ctx.textAlign = 'center';
+                ctx.textBaseline = 'middle';
+                ctx.fillStyle = '#444'; // Darker text
+
+                // Responsive font and multiline
+                const isMobile = width < 500;
+                const fontSize = isMobile ? 10 : 12;
+                ctx.font = `bold ${fontSize}px Arial`;
+                const lineHeight = fontSize + 4;
+
+                const drawLabel = (text, x, y) => {
+                    if (isMobile) {
+                        const words = text.split(' ');
+                        // Draw first word slightly above center, second slightly below
+                        ctx.fillText(words[0], x, y - lineHeight/2);
+                        if (words[1]) ctx.fillText(words[1], x, y + lineHeight/2);
+                    } else {
+                        ctx.fillText(text, x, y);
+                    }
+                };
+
+                // RC Label
+                drawLabel('RADYKALNA SZCZEROŚĆ', midX + (right - midX)/2, top + (midY - top)/2);
+                
+                // OA Label
+                drawLabel('NAPASTLIWA AGRESJA', midX + (right - midX)/2, midY + (bottom - midY)/2);
+
+                // RE Label
+                drawLabel('RUJNUJĄCA EMPATIA', left + (midX - left)/2, top + (midY - top)/2);
+
+                // MI Label
+                drawLabel('MANIPULACYJNA NIESZCZEROŚĆ', left + (midX - left)/2, midY + (bottom - midY)/2);
+
+                ctx.restore();
+            }
+        };
+
         this.chartInstance = new Chart(ctx, {
             type: 'scatter',
             data: {
@@ -321,29 +417,31 @@ const app = {
                     label: 'Wyniki',
                     data: dataPoints,
                     backgroundColor: points.map(p => p.color || 'blue'),
-                    pointRadius: 6
+                    pointRadius: 8, 
+                    pointHoverRadius: 10,
+                    borderWidth: 1,
+                    borderColor: '#fff' // White border to make point pop
                 }]
             },
+            plugins: [quadrantPlugin],
             options: {
+                maintainAspectRatio: false, // Allow chart to fill container height
                 scales: {
                     x: {
                         min: -36,
                         max: 36,
                         title: { display: true, text: 'Challenge Directly (Wyzwanie)' },
-                        grid: { color: (context) => context.tick.value === 0 ? 'black' : '#ddd', lineWidth: (context) => context.tick.value === 0 ? 2 : 1 }
+                        grid: { color: (context) => context.tick.value === 0 ? '#333' : 'rgba(0,0,0,0.1)', lineWidth: (context) => context.tick.value === 0 ? 2 : 1 }
                     },
                     y: {
                         min: -36,
                         max: 36,
                         title: { display: true, text: 'Care Personally (Troska)' },
-                        grid: { color: (context) => context.tick.value === 0 ? 'black' : '#ddd', lineWidth: (context) => context.tick.value === 0 ? 2 : 1 }
+                        grid: { color: (context) => context.tick.value === 0 ? '#333' : 'rgba(0,0,0,0.1)', lineWidth: (context) => context.tick.value === 0 ? 2 : 1 }
                     }
                 },
                 plugins: {
-                    annotation: {
-                        // Annotation plugin would be needed for background quadrants colors
-                        // For now we rely on grid lines
-                    }
+                    legend: { display: false } // Hide legend as quadrants explain it
                 }
             }
         });
@@ -435,27 +533,16 @@ const app = {
 
     // --- AI Logic ---
 
-    switchTab: function(tabName) {
-        document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
-        document.querySelectorAll('.tab-content').forEach(c => c.classList.remove('active'));
-        
-        // Find button (hacky selector but works for simple structure)
-        const buttons = document.querySelectorAll('.tab');
-        if(tabName === 'analysis') buttons[0].classList.add('active');
-        if(tabName === 'roleplay') buttons[1].classList.add('active');
-
-        document.getElementById('tab_' + tabName).classList.add('active');
-    },
-
     callAI: async function(mode) {
         let prompt = "";
-        let history = [];
         const model = document.getElementById('ai_model_selector').value;
+        const exportBtn = document.getElementById('btn_export_ai_pdf');
         
         if (mode === 'analysis') {
             prompt = document.getElementById('ai_input_analysis').value;
             const outputDiv = document.getElementById('ai_output_analysis');
             outputDiv.innerHTML = "Analizuję...";
+            if(exportBtn) exportBtn.style.display = 'none'; // Hide button during loading
             
             const res = await this.api('chat_gemini', { prompt, mode, model });
             if (res.status === 'success') {
@@ -466,22 +553,11 @@ const app = {
                     </div>
                     ${formatted}
                 `;
+                if(exportBtn) exportBtn.style.display = 'inline-block'; // Show button on success
             } else {
                 outputDiv.innerHTML = "Błąd: " + res.message;
             }
         } 
-        else if (mode === 'roleplay') {
-            prompt = document.getElementById('ai_input_roleplay').value;
-            if (!prompt) return;
-
-            this.appendChat('user', prompt);
-            document.getElementById('ai_input_roleplay').value = '';
-
-            const res = await this.api('chat_gemini', { prompt, mode, model });
-            if (res.status === 'success') {
-                this.appendChat('ai', res.data.response);
-            }
-        }
     },
 
     formatAIResponse: function(text) {
@@ -506,18 +582,6 @@ const app = {
         html = html.replace(/\n/g, '<br>');
         
         return html;
-    },
-
-    appendChat: function(role, text) {
-        const div = document.createElement('div');
-        div.className = `msg ${role}`;
-        // Format AI messages, keep user messages simple text (safe from XSS if we trusted user, but better escape user input first?)
-        // For prototype, we assume user input is safe or simple.
-        div.innerHTML = role === 'ai' ? this.formatAIResponse(text) : text; 
-        
-        const box = document.getElementById('chat_history');
-        box.appendChild(div);
-        box.scrollTop = box.scrollHeight;
     },
 
     exportResultsToPdf: function(reportType) {
@@ -561,6 +625,18 @@ const app = {
 
             reportTitle = document.getElementById('team_details_name').innerText;
             // Add manager specific details if needed here
+        } else if (reportType === 'ai_analysis') {
+            filename = 'analiza_feedbacku.pdf';
+            reportTitle = 'Analiza Feedbacku AI';
+            
+            const userInput = document.getElementById('ai_input_analysis').value;
+            const aiOutput = document.getElementById('ai_output_analysis').innerHTML;
+
+            summaryHtml = `<h3>Twój Feedback:</h3><p style="font-style: italic;">"${userInput}"</p>`;
+            detailsHtml = `<h3>Analiza AI:</h3><div style="margin-top:10px;">${aiOutput}</div>`;
+            
+            // Bypass chart check for this type
+            chartImgUrl = 'skip'; 
         }
 
         if (!chartImgUrl) {
@@ -585,15 +661,16 @@ const app = {
                 <style>
                     body { font-family: Arial, sans-serif; padding: 40px; color: #333; line-height: 1.6; }
                     h1 { text-align: center; color: #2c3e50; margin-bottom: 30px; }
-                    h3 { border-bottom: 2px solid #3498db; padding-bottom: 5px; color: #2c3e50; }
+                    h3 { border-bottom: 2px solid #3498db; padding-bottom: 5px; color: #2c3e50; margin-top: 20px; }
                     img { display: block; margin: 0 auto 30px auto; max-width: 600px; width: 100%; }
                     p { margin-bottom: 10px; font-size: 14px; }
                     strong { color: #2c3e50; }
+                    .ai-header { font-weight: bold; color: #7f8c8d; margin-bottom: 5px; }
                 </style>
             </head>
             <body>
                 <h1>${reportTitle}</h1>
-                <img src="${chartImgUrl}" alt="Wykres">
+                ${chartImgUrl !== 'skip' ? `<img src="${chartImgUrl}" alt="Wykres">` : ''}
                 ${summaryHtml}
                 ${detailsHtml}
                 
@@ -609,7 +686,7 @@ const app = {
                         
                         // Generate PDF
                         html2pdf().set(opt).from(document.body).save().then(function() {
-                            // Optional: Close window after download (commented out for debugging)
+                            // Optional: Close window after download
                             // window.close(); 
                         });
                     };
